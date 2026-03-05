@@ -15,6 +15,10 @@
 - 📲 **Installable PWA** — works offline, installs like a native app
 - ⌨️ **Keyboard shortcuts** — Space (play/stop), T (tap), ↑↓ (BPM)
 
+## Live App
+
+🎵 **[Open Metronome](https://mikgru.github.io/metronome)** — hosted on GitHub Pages
+
 ## Usage
 
 ### Local / Hosted
