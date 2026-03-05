@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d0f12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Metronome" />
+  <meta name="description" content="Ultra-precise PWA metronome by Mike Grudzinskas" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Metronome — Mike Grudzinskas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:          #0a0c0f;
+      --surface:     #1a1f28;
+      --surface2:    #222a36;
+      --surface3:    #2c3442;
+      --border:      rgba(255,255,255,0.10);
+      --border2:     rgba(255,255,255,0.18);
+      --accent:      #e2b96a;
+      --accent-dim:  rgba(226,185,106,0.16);
+      --accent-glow: rgba(226,185,106,0.32);
+      --blue:        #7ab0d8;
+      --blue-dim:    rgba(122,176,216,0.16);
+      --text:        #f2f0ea;
+      --text-mid:    #b8b4ac;
+      --text-dim:    #6a7080;
+      --danger:      #e07878;
+      --r-sm:        8px;
+      --r-md:        12px;
+      --r-lg:        18px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── EASTER EGG ── */
+    #easter-egg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13,15,18,0.82);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    #easter-egg.visible { display: flex; }
+    .easter-card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-lg);
+      padding: 44px 40px 36px;
+      text-align: center;
+      max-width: 310px;
+      width: 90%;
+      animation: cardIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(200,169,110,0.1);
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.8) translateY(24px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .easter-heart {
+      font-size: 3rem;
+      display: block;
+      margin-bottom: 18px;
+      animation: heartPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes heartPulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.15); }
+    }
+    .easter-title {
+      font-family: 'DM Serif Display', serif;
+      font-style: italic;
+      font-size: 1.45rem;
+      color: var(--accent);
+      line-height: 1.3;
+      margin-bottom: 12px;
+    }
+    .easter-body {
+      font-size: 0.82rem;
+      color: var(--text-mid);
+      font-weight: 300;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+    .easter-close {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .easter-close:hover { color: var(--text-mid); }
+
+    /* Confetti */
+    .confetti {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      border-radius: 50%;
+      animation: fall linear forwards;
+    }
+    @keyframes fall {
+      0%   { opacity: 1; transform: translateY(-10px) rotate(0deg); }
+      100% { opacity: 0; transform: translateY(105vh) rotate(800deg); }
+    }
+
+    /* ── LAYOUT ── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 460px;
+      margin: 0 auto;
+      padding: env(safe-area-inset-top, 10px) 20px env(safe-area-inset-bottom, 8px);
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0 14px;
+      flex-shrink: 0;
+    }
+    .brand {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.3rem;
+      color: var(--text);
+      cursor: pointer;
+      transition: color 0.2s;
+      letter-spacing: 0.01em;
+    }
+    .brand:hover { color: var(--accent); }
+    .brand-dot { color: var(--accent); }
+    .badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: #c8c4bc;
+      letter-spacing: 0.08em;
+      background: var(--surface2);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+
+    /* ── BPM HERO ── */
+    .bpm-hero {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0 2px;
+    }
+    .bpm-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .bpm-number {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(5rem, 23vw, 8rem);
+      line-height: 1;
+      color: var(--text);
+      letter-spacing: -0.03em;
+      cursor: ns-resize;
+      transition: color 0.08s;
+    }
+    .bpm-number.flash { color: var(--accent); }
+    .bpm-unit {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      color: #c8c4bc;
+      letter-spacing: 0.1em;
+      align-self: flex-end;
+      padding-bottom: 0.9rem;
+    }
+    .tempo-name {
+      font-family: 'DM Serif Display', serif;
+      font-style: italic;
+      font-size: 1.05rem;
+      color: var(--accent);
+      height: 1.4rem;
+      margin-top: 4px;
+    }
+
+    /* ── SLIDER ── */
+    .slider-section {
+      flex-shrink: 0;
+      padding: 8px 0 6px;
+    }
+    .slider-range {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    .range-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: #c8c4bc;
+      letter-spacing: 0.06em;
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(to right, var(--accent) var(--fill,33%), var(--surface3) var(--fill,33%));
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--text);
+      box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    input[type=range]:active::-webkit-slider-thumb {
+      transform: scale(1.2);
+      box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 0 20px var(--accent-glow);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 3px solid var(--accent);
+      cursor: pointer;
+    }
+
+    /* ── PENDULUM ── */
+    .pendulum-section {
+      flex-shrink: 0;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      margin-bottom: 10px;
+    }
+    .pendulum-track {
+      width: 100%;
+      height: 1px;
+      background: var(--border2);
+      position: relative;
+    }
+    #pendulum-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      transition: left 0.09s ease-out;
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+    #pendulum-dot.flash {
+      background: #fff;
+      box-shadow: 0 0 20px rgba(255,255,255,0.6);
+    }
+
+    /* ── BEAT GRID ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--r-md);
+    }
+    .card-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.10em;
+      color: #f0ede6;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .beat-card {
+      padding: 14px 16px;
+      margin-bottom: 10px;
+    }
+    #beat-grid {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .beat-cell {
+      flex: 1;
+      min-width: 24px;
+      max-width: 54px;
+      aspect-ratio: 1;
+      border-radius: var(--r-sm);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      transition: background 0.05s, border-color 0.05s, box-shadow 0.05s;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 4px;
+    }
+    .beat-cell.is-accent { border-top: 2px solid rgba(226,185,106,0.45); }
+    .beat-cell.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow), 0 2px 12px rgba(226,185,106,0.22);
+    }
+    .beat-cell.active.is-sub {
+      background: var(--blue);
+      border-color: var(--blue);
+      box-shadow: 0 0 12px var(--blue-dim);
+    }
+    .beat-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.55rem;
+      color: var(--text-dim);
+    }
+    .beat-cell.active .beat-num,
+    .beat-cell.active.is-sub .beat-num { color: rgba(10,12,15,0.6); }
+
+    /* ── CONTROLS GRID ── */
+    .controls-row {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ctrl-card {
+      padding: 14px 16px;
+    }
+    .ctrl-full { grid-column: 1 / -1; }
+    .pill-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      padding: 8px 12px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: var(--surface2);
+      color: #c8c4bc;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.03em;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+    }
+    .pill:active { transform: scale(0.95); }
+    .pill.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+      font-weight: 500;
+    }
+    .vol-row { display: flex; align-items: center; gap: 12px; }
+    .vol-icon { font-size: 0.9rem; opacity: 0.45; flex-shrink: 0; }
+    .vol-row input[type=range] { flex: 1; }
+
+    /* ── ACTIONS ── */
+    .actions {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: 1fr 1.7fr 1fr;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .btn {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 0.95rem;
+      padding: 16px 10px;
+      border-radius: var(--r-md);
+      border: 1px solid rgba(255,255,255,0.18);
+      background: var(--surface2);
+      color: #c8c4bc;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      line-height: 1.35;
+      min-height: 56px;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    #play-btn {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg);
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.07em;
+      box-shadow: 0 4px 20px rgba(226,185,106,0.25);
+    }
+    #play-btn:active { background: #d4aa55; box-shadow: none; }
+    #play-btn.playing {
+      background: var(--surface2);
+      border-color: var(--danger);
+      color: var(--danger);
+      box-shadow: 0 4px 18px rgba(224,120,120,0.15);
+    }
+
+    #tap-btn {
+      border-color: rgba(210,155,100,0.45);
+      color: #d49b64;
+      background: rgba(210,155,100,0.10);
+      font-size: 0.82rem;
+    }
+    #tap-btn:active { background: rgba(210,155,100,0.22); }
+
+    /* ── FOOTER ── */
+    footer {
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0 2px;
+      border-top: 1px solid var(--border);
+    }
+    .footer-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      color: #888480;
+      letter-spacing: 0.07em;
+    }
+    .install-btn {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      padding: 6px 12px;
+      border-radius: 7px;
+      border: 1px solid rgba(226,185,106,0.4);
+      background: transparent;
+      color: var(--accent);
+      cursor: pointer;
+      letter-spacing: 0.07em;
+      display: none;
+      transition: all 0.15s;
+      min-height: 34px;
+    }
+    .install-btn.visible { display: flex; align-items: center; }
+    .install-btn:active { background: var(--accent-dim); }
+
+    /* ── SCROLL ── */
+    .scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      -webkit-overflow-scrolling: touch;
+    }
+    .scroll-body::-webkit-scrollbar { width: 2px; }
+    .scroll-body::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 1px; }
+    .spacer { flex: 1; min-height: 4px; }
+
+    @media (max-height: 680px) {
+      .bpm-number { font-size: clamp(3.8rem, 19vw, 5.5rem); }
+      .pendulum-section { height: 26px; margin-bottom: 6px; }
+      .beat-card { padding: 10px 12px; margin-bottom: 8px; }
+      .controls-row { gap: 6px; margin-bottom: 6px; }
+      .actions { gap: 6px; margin-bottom: 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Easter Egg -->
+<div id="easter-egg">
+  <div class="easter-card">
+    <span class="easter-heart">🌸</span>
+    <div class="easter-title">Inspired by my amazing daughter Elizabeth!</div>
+    <div class="easter-body">Every beat has a story.<br>This one is yours, always.</div>
+    <div class="easter-close" id="easter-close">— tap anywhere to close —</div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand" id="brand-tap">Metronome<span class="brand-dot">.</span></div>
+    <div class="badge">v1.0 · MIT</div>
+  </header>
+
+  <div class="scroll-body">
+
+    <div class="bpm-hero">
+      <div class="bpm-wrap">
+        <div class="bpm-number" id="bpm-display" title="Drag up or down to change BPM">120</div>
+        <div class="bpm-unit">BPM</div>
+      </div>
+      <div class="tempo-name" id="tempo-name">Moderato</div>
+    </div>
+
+    <div class="slider-section">
+      <div class="slider-range">
+        <span class="range-label">20</span>
+        <span class="range-label">160</span>
+        <span class="range-label">300</span>
+      </div>
+      <input type="range" id="bpm-slider" min="20" max="300" value="120" step="1" />
+    </div>
+
+    <div class="pendulum-section">
+      <div class="pendulum-track">
+        <div id="pendulum-dot"></div>
+      </div>
+    </div>
+
+    <div class="card beat-card">
+      <div class="card-label">Beat Indicator</div>
+      <div id="beat-grid"></div>
+    </div>
+
+    <div class="controls-row">
+      <div class="card ctrl-card">
+        <div class="card-label">Time Signature</div>
+        <div class="pill-row" id="sig-pills">
+          <button class="pill" data-sig="2">2/4</button>
+          <button class="pill active" data-sig="4">4/4</button>
+          <button class="pill" data-sig="3">3/4</button>
+          <button class="pill" data-sig="6">6/8</button>
+          <button class="pill" data-sig="5">5/4</button>
+          <button class="pill" data-sig="7">7/8</button>
+        </div>
+      </div>
+
+      <div class="card ctrl-card">
+        <div class="card-label">Subdivisions</div>
+        <div class="pill-row" id="sub-pills">
+          <button class="pill active" data-sub="1">¼</button>
+          <button class="pill" data-sub="2">⅛</button>
+          <button class="pill" data-sub="3">Trip</button>
+          <button class="pill" data-sub="4">16th</button>
+        </div>
+      </div>
+
+      <div class="card ctrl-card ctrl-full">
+        <div class="card-label">Volume</div>
+        <div class="vol-row">
+          <span class="vol-icon">♩</span>
+          <input type="range" id="vol-slider" min="0" max="100" value="80" />
+          <span class="vol-icon" style="opacity:0.65">♬</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="tap-btn">Tap<br/>Tempo</button>
+      <button class="btn" id="play-btn">START</button>
+      <button class="btn" id="step-btn" data-mode="minus">−5 BPM</button>
+    </div>
+
+    <div class="spacer"></div>
+  </div>
+
+  <footer>
+    <div class="footer-text">© 2024 Mike Grudzinskas · MIT License</div>
+    <button class="install-btn" id="install-btn">⊕ Install</button>
+  </footer>
+</div>
+
+<script>
+/*
+  Metronome — Ultra-Precise PWA
+  © 2024 Mike Grudzinskas · MIT License
+*/
+'use strict';
+
+// ── State ──────────────────────────────────────────
+const state = {
+  bpm: 120,
+  beatsPerBar: 4,
+  subdivision: 1,
+  volume: 0.8,
+  playing: false,
+};
+
+// ── Web Audio Scheduler ────────────────────────────
+let audioCtx       = null;
+let nextNoteTime   = 0;
+let currentStep    = 0;
+let schedulerTimer = null;
+const LOOKAHEAD_MS   = 25;
+const SCHEDULE_AHEAD = 0.12;
+
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playClick(time, isAccent, isSub) {
+  const ctx = getCtx();
+  const g = ctx.createGain();
+  g.connect(ctx.destination);
+  const osc = ctx.createOscillator();
+  osc.connect(g);
+  if (isAccent) {
+    osc.frequency.value = 1760;
+    g.gain.setValueAtTime(state.volume, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.065);
+  } else if (isSub) {
+    osc.frequency.value = 880;
+    g.gain.setValueAtTime(state.volume * 0.32, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.032);
+  } else {
+    osc.frequency.value = 1175;
+    g.gain.setValueAtTime(state.volume * 0.68, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+  }
+  osc.start(time);
+  osc.stop(time + 0.12);
+}
+
+function scheduler() {
+  const ctx   = getCtx();
+  const total = state.beatsPerBar * state.subdivision;
+  const secPerStep = (60 / state.bpm) / state.subdivision;
+
+  while (nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD) {
+    const beat     = Math.floor((currentStep % total) / state.subdivision);
+    const sub      = currentStep % state.subdivision;
+    const isAccent = beat === 0 && sub === 0;
+    const isSub    = sub !== 0;
+
+    playClick(nextNoteTime, isAccent, isSub);
+
+    const delay = Math.max(0, (nextNoteTime - ctx.currentTime) * 1000);
+    const b = beat, s = sub, a = isAccent;
+    setTimeout(() => { if (state.playing) updateVisuals(b, s, a); }, delay);
+
+    nextNoteTime += secPerStep;
+    currentStep++;
+  }
+  schedulerTimer = setTimeout(scheduler, LOOKAHEAD_MS);
+}
+
+function start() {
+  const ctx = getCtx();
+  if (ctx.state === 'suspended') ctx.resume();
+  state.playing = true;
+  currentStep   = 0;
+  nextNoteTime  = ctx.currentTime + 0.05;
+  scheduler();
+  const btn = document.getElementById('play-btn');
+  btn.textContent = 'STOP';
+  btn.classList.add('playing');
+}
+
+function stop() {
+  state.playing = false;
+  clearTimeout(schedulerTimer);
+  const btn = document.getElementById('play-btn');
+  btn.textContent = 'START';
+  btn.classList.remove('playing');
+  resetVisuals();
+}
+
+// ── Beat Grid ──────────────────────────────────────
+function buildBeatGrid() {
+  const grid = document.getElementById('beat-grid');
+  grid.innerHTML = '';
+  const total = state.beatsPerBar * state.subdivision;
+  for (let i = 0; i < total; i++) {
+    const beat = Math.floor(i / state.subdivision);
+    const sub  = i % state.subdivision;
+    const cell = document.createElement('div');
+    cell.className = 'beat-cell' + (sub === 0 ? ' is-accent' : '');
+    cell.id = `cell-${i}`;
+    const n = document.createElement('div');
+    n.className = 'beat-num';
+    n.textContent = sub === 0 ? beat + 1 : '·';
+    cell.appendChild(n);
+    grid.appendChild(cell);
+  }
+}
+
+let lastCell = -1;
+function updateVisuals(beat, sub, isAccent) {
+  const idx = beat * state.subdivision + sub;
+  if (lastCell >= 0) {
+    const p = document.getElementById(`cell-${lastCell}`);
+    if (p) p.classList.remove('active', 'is-sub');
+  }
+  const c = document.getElementById(`cell-${idx}`);
+  if (c) { c.classList.add('active'); if (sub !== 0) c.classList.add('is-sub'); }
+  lastCell = idx;
+
+  if (isAccent) {
+    const d = document.getElementById('bpm-display');
+    d.classList.add('flash');
+    setTimeout(() => d.classList.remove('flash'), 70);
+  }
+
+  const dot   = document.getElementById('pendulum-dot');
+  dot.style.left = beat % 2 === 0 ? '8%' : '92%';
+  if (isAccent) {
+    dot.classList.add('flash');
+    setTimeout(() => dot.classList.remove('flash'), 80);
+  }
+}
+
+function resetVisuals() {
+  if (lastCell >= 0) {
+    const p = document.getElementById(`cell-${lastCell}`);
+    if (p) p.classList.remove('active', 'is-sub');
+    lastCell = -1;
+  }
+  document.getElementById('pendulum-dot').style.left = '50%';
+}
+
+// ── BPM ───────────────────────────────────────────
+const TEMPOS = [
+  [20,'Larghissimo'],[40,'Grave'],[60,'Largo'],[66,'Larghetto'],
+  [76,'Adagio'],[108,'Andante'],[120,'Moderato'],[156,'Allegro'],
+  [176,'Vivace'],[200,'Presto'],[248,'Prestissimo']
+];
+function getTempoName(bpm) {
+  for (let i = TEMPOS.length - 1; i >= 0; i--)
+    if (bpm >= TEMPOS[i][0]) return TEMPOS[i][1];
+  return 'Larghissimo';
+}
+function updateBpmUI() {
+  const pct = ((state.bpm - 20) / 280 * 100).toFixed(1) + '%';
+  const s = document.getElementById('bpm-slider');
+  s.style.setProperty('--fill', pct);
+  s.value = state.bpm;
+  document.getElementById('bpm-display').textContent = state.bpm;
+  document.getElementById('tempo-name').textContent  = getTempoName(state.bpm);
+}
+
+// ── Tap Tempo ─────────────────────────────────────
+let tapLog = [];
+function handleTap() {
+  const now = performance.now();
+  if (tapLog.length && now - tapLog[tapLog.length - 1] > 3000) tapLog = [];
+  tapLog.push(now);
+  if (tapLog.length > 8) tapLog.shift();
+  if (tapLog.length > 1) {
+    const gaps = [];
+    for (let i = 1; i < tapLog.length; i++) gaps.push(tapLog[i] - tapLog[i-1]);
+    const avg = gaps.reduce((a,b) => a+b) / gaps.length;
+    state.bpm = Math.min(300, Math.max(20, Math.round(60000 / avg)));
+    updateBpmUI();
+  }
+  const btn = document.getElementById('tap-btn');
+  btn.style.background = 'rgba(110,157,200,0.3)';
+  setTimeout(() => btn.style.background = '', 120);
+}
+
+// ── BPM Drag ──────────────────────────────────────
+let dragY = null, dragBpm = null;
+const bpmEl = document.getElementById('bpm-display');
+bpmEl.addEventListener('mousedown',  e => { dragY = e.clientY; dragBpm = state.bpm; });
+bpmEl.addEventListener('touchstart', e => { dragY = e.touches[0].clientY; dragBpm = state.bpm; }, {passive:true});
+window.addEventListener('mousemove', e => {
+  if (dragY === null) return;
+  state.bpm = Math.min(300, Math.max(20, dragBpm + Math.round((dragY - e.clientY) / 2.5)));
+  updateBpmUI();
+});
+window.addEventListener('touchmove', e => {
+  if (dragY === null) return;
+  state.bpm = Math.min(300, Math.max(20, dragBpm + Math.round((dragY - e.touches[0].clientY) / 2.5)));
+  updateBpmUI();
+}, {passive:true});
+window.addEventListener('mouseup',  () => dragY = null);
+window.addEventListener('touchend', () => dragY = null);
+
+// ── Easter Egg — 5 taps on title within 5 seconds ─
+let eggTaps = [], eggTimer = null;
+document.getElementById('brand-tap').addEventListener('click', () => {
+  const now = Date.now();
+  eggTaps.push(now);
+  eggTaps = eggTaps.filter(t => now - t < 5000);
+  clearTimeout(eggTimer);
+  eggTimer = setTimeout(() => { eggTaps = []; }, 5000);
+  if (eggTaps.length >= 5) {
+    eggTaps = [];
+    clearTimeout(eggTimer);
+    document.getElementById('easter-egg').classList.add('visible');
+    spawnConfetti();
+  }
+});
+function closeEgg() { document.getElementById('easter-egg').classList.remove('visible'); }
+document.getElementById('easter-close').addEventListener('click', closeEgg);
+document.getElementById('easter-egg').addEventListener('click', e => {
+  if (e.target === document.getElementById('easter-egg')) closeEgg();
+});
+
+function spawnConfetti() {
+  const colors = ['#c8a96e','#6e9dc8','#c86e9d','#9dc86e','#c8c86e','#f0d090','#8eb8d4'];
+  for (let i = 0; i < 55; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    const sz = 4 + Math.random() * 7;
+    el.style.cssText = `
+      left:${Math.random()*100}vw;
+      top:${-10 - Math.random()*20}px;
+      width:${sz}px;
+      height:${sz}px;
+      border-radius:${Math.random()>0.4?'50%':'3px'};
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      animation-duration:${1.6+Math.random()*2.2}s;
+      animation-delay:${Math.random()*0.7}s;
+    `;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
+  }
+}
+
+// ── Events ────────────────────────────────────────
+document.getElementById('bpm-slider').addEventListener('input', e => {
+  state.bpm = parseInt(e.target.value, 10); updateBpmUI();
+});
+document.getElementById('play-btn').addEventListener('click', () => {
+  state.playing ? stop() : start();
+});
+document.getElementById('tap-btn').addEventListener('click', handleTap);
+document.getElementById('tap-btn').addEventListener('touchend', e => { e.preventDefault(); handleTap(); });
+document.getElementById('step-btn').addEventListener('click', () => {
+  const btn = document.getElementById('step-btn');
+  if (btn.dataset.mode === 'plus') {
+    state.bpm = Math.min(300, state.bpm + 5);
+    btn.textContent = '−5 BPM';
+    btn.dataset.mode = 'minus';
+  } else {
+    state.bpm = Math.max(20, state.bpm - 5);
+    btn.textContent = '+5 BPM';
+    btn.dataset.mode = 'plus';
+  }
+  updateBpmUI();
+});
+document.getElementById('vol-slider').addEventListener('input', e => {
+  state.volume = parseInt(e.target.value, 10) / 100;
+});
+document.getElementById('sig-pills').addEventListener('click', e => {
+  const p = e.target.closest('[data-sig]'); if (!p) return;
+  document.querySelectorAll('#sig-pills .pill').forEach(x => x.classList.remove('active'));
+  p.classList.add('active');
+  state.beatsPerBar = parseInt(p.dataset.sig, 10);
+  buildBeatGrid();
+  if (state.playing) { stop(); start(); }
+});
+document.getElementById('sub-pills').addEventListener('click', e => {
+  const p = e.target.closest('[data-sub]'); if (!p) return;
+  document.querySelectorAll('#sub-pills .pill').forEach(x => x.classList.remove('active'));
+  p.classList.add('active');
+  state.subdivision = parseInt(p.dataset.sub, 10);
+  buildBeatGrid();
+  if (state.playing) { stop(); start(); }
+});
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space')     { e.preventDefault(); state.playing ? stop() : start(); }
+  if (e.code === 'KeyT')      handleTap();
+  if (e.code === 'ArrowUp')   { state.bpm = Math.min(300, state.bpm+1); updateBpmUI(); }
+  if (e.code === 'ArrowDown') { state.bpm = Math.max(20,  state.bpm-1); updateBpmUI(); }
+});
+
+// ── PWA Install ───────────────────────────────────
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-btn').classList.add('visible');
+});
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  if (outcome === 'accepted') document.getElementById('install-btn').classList.remove('visible');
+});
+
+// ── Init ──────────────────────────────────────────
+buildBeatGrid();
+updateBpmUI();
+if ('serviceWorker' in navigator)
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
